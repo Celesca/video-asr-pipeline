@@ -98,3 +98,6 @@ def analyze_transcript(request: TranscriptAnalyzeRequest):
         return {"analysis": analysis}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# run the app with uvicorn
+# uvicorn api:app --reload --port 8000
