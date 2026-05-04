@@ -45,6 +45,26 @@ def transcribe_audio_file(audio_path: str, api_key: str) -> str:
 	return transcription.text
 
 
+def analyze_transcript(transcript_text: str, api_key: str) -> str:
+	client = OpenAI(api_key=api_key)
+	
+	prompt = """
+	You are an expert technical reviewer. Your job is to read the following transcript of a video 
+	and determine if any of the information is outdated, especially regarding programming languages like Java.
+	Please provide a concise summary indicating if the content is still relevant, or if it requires an update.
+	"""
+	
+	response = client.chat.completions.create(
+		model="gpt-4o",
+		messages=[
+			{"role": "system", "content": prompt},
+			{"role": "user", "content": transcript_text}
+		]
+	)
+	
+	return response.choices[0].message.content
+
+
 def load_video_paths(video_paths: list[str] | None, video_list_file: str | None) -> list[str]:
 	paths: list[str] = []
 
