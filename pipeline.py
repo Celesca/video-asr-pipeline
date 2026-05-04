@@ -1,16 +1,16 @@
 from pathlib import Path
 import argparse
 import subprocess
+import tempfile
+
 import imageio_ffmpeg
+from openai import OpenAI
 
 
-def extract_audio_to_mp3(input_mp4: str, output_mp3: str | None = None) -> str:
-	input_path = Path(input_mp4)
+def extract_audio_to_mp3(input_video: str, output_mp3: str | None = None) -> str:
+	input_path = Path(input_video)
 	if not input_path.exists():
 		raise FileNotFoundError(f"Input file not found: {input_path}")
-
-	if input_path.suffix.lower() not in [".mp4", ".m4v"]:
-		raise ValueError("Input file must be an .mp4 or .m4v file")
 
 	out_path = Path(output_mp3) if output_mp3 else input_path.with_suffix(".mp3")
 
@@ -30,14 +30,73 @@ def extract_audio_to_mp3(input_mp4: str, output_mp3: str | None = None) -> str:
 	return str(out_path)
 
 
+def transcribe_audio_file(audio_path: str, api_key: str) -> str:
+	client = OpenAI(api_key=api_key)
+
+	with open(audio_path, "rb") as audio_file:
+		transcription = client.audio.transcriptions.create(
+			model="gpt-4o-transcribe",
+			file=audio_file,
+		)
+
+	return transcription.text
+
+
+def load_video_paths(video_paths: list[str] | None, video_list_file: str | None) -> list[str]:
+	paths: list[str] = []
+
+	if video_list_file:
+		with open(video_list_file, "r", encoding="utf-8") as handle:
+			for line in handle:
+				item = line.strip()
+				if item and not item.startswith("#"):
+					paths.append(item)
+
+	if video_paths:
+		paths.extend(video_paths)
+
+	if not paths:
+		raise ValueError("Provide at least one video path or a video list file")
+
+	return paths
+
+
+def process_video(video_path: str, api_key: str, output_dir: str | None = None) -> Path:
+	video_file = Path(video_path)
+	if not video_file.exists():
+		raise FileNotFoundError(f"Input file not found: {video_file}")
+
+	output_base = Path(output_dir) if output_dir else video_file.parent
+	output_base.mkdir(parents=True, exist_ok=True)
+
+	transcript_path = output_base / f"{video_file.stem}.txt"
+
+	with tempfile.TemporaryDirectory() as temp_dir:
+		audio_path = Path(temp_dir) / f"{video_file.stem}.mp3"
+		extract_audio_to_mp3(str(video_file), str(audio_path))
+		transcript_text = transcribe_audio_file(str(audio_path), api_key)
+
+	transcript_path.write_text(transcript_text, encoding="utf-8")
+	return transcript_path
+
+
 def main() -> None:
-	parser = argparse.ArgumentParser(description="Extract audio from MP4 and save as MP3")
-	parser.add_argument("input_mp4", help="Path to input .mp4 file")
-	parser.add_argument("-o", "--output", dest="output_mp3", help="Path to output .mp3 file")
+	parser = argparse.ArgumentParser(description="Extract audio from video files and transcribe them with OpenAI")
+	parser.add_argument("video_paths", nargs="*", help="Paths to input video files")
+	parser.add_argument("-l", "--video-list", dest="video_list_file", help="Text file containing one video path per line")
+	parser.add_argument("-k", "--api-key", dest="api_key", help="OpenAI API key")
+	parser.add_argument("-o", "--output-dir", dest="output_dir", help="Directory where transcripts are saved")
 	args = parser.parse_args()
 
-	output_file = extract_audio_to_mp3(args.input_mp4, args.output_mp3)
-	print(f"Saved MP3: {output_file}")
+	api_key = args.api_key
+	if not api_key:
+		raise ValueError("Pass an OpenAI API key with --api-key")
+
+	video_paths = load_video_paths(args.video_paths, args.video_list_file)
+
+	for video_path in video_paths:
+		transcript_path = process_video(video_path, api_key, args.output_dir)
+		print(f"Saved transcript: {transcript_path}")
 
 
 if __name__ == "__main__":
