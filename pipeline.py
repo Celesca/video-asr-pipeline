@@ -1,10 +1,12 @@
 from pathlib import Path
 import argparse
+import os
 import subprocess
 import tempfile
 
 import imageio_ffmpeg
 from openai import OpenAI
+from dotenv import load_dotenv
 
 
 def extract_audio_to_mp3(input_video: str, output_mp3: str | None = None) -> str:
@@ -36,6 +38,7 @@ def transcribe_audio_file(audio_path: str, api_key: str) -> str:
 	with open(audio_path, "rb") as audio_file:
 		transcription = client.audio.transcriptions.create(
 			model="gpt-4o-transcribe",
+			language="th",
 			file=audio_file,
 		)
 
@@ -84,13 +87,13 @@ def main() -> None:
 	parser = argparse.ArgumentParser(description="Extract audio from video files and transcribe them with OpenAI")
 	parser.add_argument("video_paths", nargs="*", help="Paths to input video files")
 	parser.add_argument("-l", "--video-list", dest="video_list_file", help="Text file containing one video path per line")
-	parser.add_argument("-k", "--api-key", dest="api_key", help="OpenAI API key")
 	parser.add_argument("-o", "--output-dir", dest="output_dir", help="Directory where transcripts are saved")
 	args = parser.parse_args()
 
-	api_key = args.api_key
+	load_dotenv()
+	api_key = os.getenv("OPENAI_API_KEY")
 	if not api_key:
-		raise ValueError("Pass an OpenAI API key with --api-key")
+		raise ValueError("Set OPENAI_API_KEY in your .env file")
 
 	video_paths = load_video_paths(args.video_paths, args.video_list_file)
 
