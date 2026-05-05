@@ -45,7 +45,7 @@ def transcribe_audio_file(audio_path: str, api_key: str) -> str:
 	return transcription.text
 
 
-def analyze_transcript(transcript_text: str, api_key: str) -> str:
+def analyze_transcript(transcript_text: str, api_key: str, comments: list[str] | None = None) -> str:
 	client = OpenAI(api_key=api_key)
 	
 	prompt = """
@@ -54,6 +54,11 @@ def analyze_transcript(transcript_text: str, api_key: str) -> str:
 	Please provide a concise summary indicating if the content is still relevant, or if it requires an update.
 	"""
 	
+	if comments:
+		prompt += "\n\nAdditionally, consider the following comments from users as context to evaluate if any part of the video is confusing or outdated:\n"
+		for c in comments:
+			prompt += f"- {c}\n"
+
 	response = client.chat.completions.create(
 		model="gpt-4o",
 		messages=[
